@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novel-to-Movie AI Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30 text-lg">
+        🎬
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+          Novel-to-Movie <span class="text-xs uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-semibold">AI Studio</span>
+        </h1>
+        <p class="text-xs text-slate-400">Headless ComfyUI on Modal • Wan 2.2 • Flux.1 • F5-TTS</p>
+      </div>
+    </div>
+
+    <!-- System Status Badges -->
+    <div class="flex items-center gap-3 text-xs">
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700">
+        <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-slate-300 font-medium">Modal GPU Active</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700">
+        <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
+        <span class="text-slate-300 font-medium">ComfyUI Ready</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700">
+        <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+        <span class="text-slate-300 font-medium">GPT-5 Luna</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Multi-Panel Workspace -->
+  <main class="flex-1 p-6 grid grid-cols-12 gap-6 max-w-[1800px] w-full mx-auto">
+
+    <!-- Left Column: Novel Input & Cast Bible (3 Cols) -->
+    <aside class="col-span-12 lg:col-span-3 flex flex-col gap-5">
+      <!-- Story Ingestion Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            📖 Novel Input
+          </h2>
+          <span class="text-xs text-indigo-400 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-800/40 font-mono">Chapter 1</span>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">Public domain chapter text for script breakdown and shot extraction.</p>
+        <textarea id="chapterText" rows="6" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-serif leading-relaxed focus:outline-none focus:border-indigo-500 transition resize-none" placeholder="Paste novel chapter text...">{{ sample_text }}</textarea>
+        
+        <div class="mt-4 flex gap-2">
+          <button id="btnBreakdown" onclick="runBreakdown()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow-sm shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+            <span>⚡ Break Down Script</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Cast & Voice Bibles Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex-1">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
+          🎭 Cast & Voice Bibles
+        </h2>
+        <div class="space-y-3">
+          {% for char_id, char in characters.items() %}
+          <div class="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-slate-200">{{ char.name }}</span>
+              <span class="text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.5 rounded">{{ char.gender }}, {{ char.age }}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{{ char.appearance_description }}</p>
+            <div class="mt-2 flex items-center gap-2">
+              <span class="text-[10px] text-indigo-400 bg-indigo-950/50 border border-indigo-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                🎤 F5-TTS Profile
+              </span>
+              <span class="text-[10px] text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                👤 PuLID Face Lock
+              </span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center Column: Shot Queue & Director Console (6 Cols) -->
+    <section class="col-span-12 lg:col-span-6 flex flex-col gap-4">
+      <!-- Toolbar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            🎞️ Production Shot Queue
+            <span id="shotCountBadge" class="bg-indigo-600/30 text-indigo-300 text-xs px-2 py-0.5 rounded-full font-mono">{{ shots|length }} Shots</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Sequential keyframe and Image-to-Video generation queue.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="renderAll(true)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2 px-3 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+            <span>🧪 Render Mock (Fast)</span>
+          </button>
+          <button onclick="renderAll(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm shadow-indigo-600/30 transition flex items-center gap-1.5">
+            <span>🚀 Render Remote (GPU)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Shot Cards Container -->
+      <div id="shotList" class="space-y-3.5 flex-1 overflow-y-auto max-h-[750px] pr-1">
+        {% for shot in shots %}
+        <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition shadow-sm group">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="font-mono text-xs font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2 py-0.5 rounded">
+                {{ shot.shot_id }}
+              </span>
+              <span class="text-xs uppercase font-semibold text-slate-300 px-2 py-0.5 bg-slate-800 rounded">
+                {{ shot.shot_type }}
+              </span>
+              {% if shot.speaker %}
+              <span class="text-xs text-amber-300 px-2 py-0.5 bg-amber-950/50 border border-amber-800/40 rounded flex items-center gap-1">
+                🗣️ {{ shot.speaker }}
+              </span>
+              {% endif %}
+              {% if shot.lip_sync_required %}
+              <span class="text-[11px] text-blue-300 px-2 py-0.5 bg-blue-950/50 border border-blue-800/40 rounded">
+                👄 Lip-Sync
+              </span>
+              {% endif %}
+            </div>
+
+            <!-- Status Badge -->
+            <div>
+              {% if shot.status == 'passed' %}
+              <span class="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Approved
+              </span>
+              {% elif shot.status == 'queued' %}
+              <span class="text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Queued
+              </span>
+              {% else %}
+              <span class="text-xs font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2.5 py-1 rounded-full">
+                {{ shot.status }}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Prompt & Dialogue -->
+          <div class="mt-3 text-xs space-y-1.5">
+            <p class="text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-400">Visual Prompt:</strong> {{ shot.visual_prompt }}
+            </p>
+            {% if shot.dialogue %}
+            <div class="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-slate-200 font-serif italic text-xs">
+              {% for d in shot.dialogue %}
+              "{{ d.text }}"
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Footer details & Actions -->
+          <div class="mt-3.5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-mono text-[11px]">
+              Duration: {{ shot.target_duration_sec }}s • Mood: {{ shot.mood }}
+            </span>
+            <div class="flex items-center gap-2">
+              {% if shot.synced_path %}
+              <button onclick="playClip('/output/synced/{{ shot.shot_id }}.mp4', '{{ shot.shot_id }}')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition flex items-center gap-1 text-xs">
+                ▶ Preview Clip
+              </button>
+              {% endif %}
+              <button onclick="renderShot('{{ shot.shot_id }}', true)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium transition text-xs shadow-sm shadow-indigo-600/30">
+                Render Shot
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Right Column: Cinema Player & Final Film Assembly (3 Cols) -->
+    <aside class="col-span-12 lg:col-span-3 flex flex-col gap-5">
+      <!-- Cinema Screen Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            📽️ Cinema Preview
+          </h2>
+          <span id="activeClipBadge" class="text-xs text-slate-400 font-mono">Master Cut</span>
+        </div>
+
+        <div class="aspect-video bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center relative shadow-inner">
+          <video id="cinemaPlayer" controls class="w-full h-full object-contain" src="/output/final/test_scene_assembled.mp4"></video>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button onclick="assembleMovie()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow-sm shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+            <span>🎞️ Assemble Master Movie</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Execution Console Log -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            💻 Pipeline Activity
+          </h2>
+          <button onclick="document.getElementById('logConsole').innerText = ''" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+        </div>
+        <div id="logConsole" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] text-emerald-400 overflow-y-auto max-h-[300px] leading-relaxed">
+[System] Novel-to-Movie AI Studio initialized.
+[System] Database connected: SQLite shots.db
+[System] Ready to ingest novel or render shots.
+        </div>
+      </section>
+    </aside>
+
+  </main>
+
+  <script>
+    function logMessage(msg) {
+      const consoleEl = document.getElementById('logConsole');
+      consoleEl.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function playClip(url, title) {
+      const player = document.getElementById('cinemaPlayer');
+      const badge = document.getElementById('activeClipBadge');
+      player.src = url;
+      player.play();
+      badge.innerText = title;
+      logMessage(`Playing clip: ${title}`);
+    }
+
+    async function runBreakdown() {
+      const btn = document.getElementById('btnBreakdown');
+      btn.disabled = true;
+      btn.innerText = "Analyzing Chapter...";
+      logMessage("Submitting chapter to frontier LLM for dramatic shot breakdown...");
+
+      try {
+        const text = document.getElementById('chapterText').value;
+        const res = await fetch('/api/breakdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chapter_text: text, chapter_num: 1 })
+        });
+        const data = await res.json();
+        logMessage(`Breakdown completed: Generated ${data.count} shot jobs.`);
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        logMessage(`Error: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "⚡ Break Down Script";
+      }
+    }
+
+    async function renderShot(shotId, mock) {
+      logMessage(`Triggering render for shot ${shotId} (Mock: ${mock})...`);
+      try {
+        const res = await fetch(`/api/render/${shotId}?mock=${mock}`, { method: 'POST' });
+        const data = await res.json();
+        logMessage(`Shot ${shotId} completed: Status is ${data.status}.`);
+        setTimeout(() => location.reload(), 800);
+      } catch (err) {
+        logMessage(`Render error for ${shotId}: ${err.message}`);
+      }
+    }
+
+    async function renderAll(mock) {
+      logMessage(`Starting batch render for all queued shots (Mock: ${mock})...`);
+      try {
+        const res = await fetch(`/api/render-all?mock=${mock}`, { method: 'POST' });
+        const data = await res.json();
+        logMessage(`Batch pass finished: ${data.message}`);
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        logMessage(`Batch error: ${err.message}`);
+      }
+    }
+
+    async function assembleMovie() {
+      logMessage("Invoking FFmpeg to assemble approved shots and mix audio...");
+      try {
+        const res = await fetch('/api/assemble', { method: 'POST' });
+        const data = await res.json();
+        logMessage(`Assembly complete! Final video: ${data.output}`);
+        playClip('/output/final/test_scene_assembled.mp4', 'Final Movie');
+      } catch (err) {
+        logMessage(`Assembly error: ${err.message}`);
+      }
+    }
+  </script>
+</body>
+</html>
