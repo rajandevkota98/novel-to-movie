@@ -60,8 +60,16 @@
     "inputs": {
       "pulid_file": "pulid_flux_v0.9.1.safetensors",
       "weight": 0.85,
-      "model": ["4", 0]
+      "model": ["4", 0],
+      "image": ["11", 0]
     },
     "class_type": "ApplyPulid"
+  },
+  "11": {
+    "inputs": {
+      "image": "{{CHARACTER_REF_IMAGE}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
   }
 }
