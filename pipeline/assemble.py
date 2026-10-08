@@ -31,6 +31,7 @@ def concatenate_clips(concat_list_path: str, output_path: str) -> str:
         "-safe", "0",
         "-i", concat_list_path,
         "-c:v", "libx264",
+        "-c:a", "aac",
         "-pix_fmt", "yuv420p",
         "-crf", "18",
         "-preset", "fast",
