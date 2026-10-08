@@ -1,0 +1,37 @@
+{
+  "1": {
+    "inputs": {
+      "image": "{{KEYFRAME_IMAGE}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "2": {
+    "inputs": {
+      "ckpt_name": "ltx-video-2b-v0.9.1.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "3": {
+    "inputs": {
+      "prompt": "{{MOTION_PROMPT}}",
+      "negative_prompt": "static, blurry, jump cuts, distortion",
+      "seed": 42,
+      "steps": 20,
+      "cfg": 3.0,
+      "num_frames": 81,
+      "fps": 24,
+      "image": ["1", 0],
+      "model": ["2", 0]
+    },
+    "class_type": "LTXVideoSampler"
+  },
+  "4": {
+    "inputs": {
+      "filename_prefix": "ltx_clip",
+      "fps": 24,
+      "images": ["3", 0]
+    },
+    "class_type": "VHS_VideoCombine"
+  }
+}
