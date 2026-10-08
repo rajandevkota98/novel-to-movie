@@ -5,10 +5,13 @@ Autonomous end-to-end pipeline that transforms public-domain literature into an 
 ![Novel-to-Movie AI Studio UI](assets/ui_studio_preview.png)
 
 ## Core Stack
-- **Web Studio**: Modern interactive dashboard powered by FastAPI.
+- **Web Studio**: Modern interactive dashboard powered by FastAPI with live character sheet portraits and keyframe previews.
 - **Language & Paradigm**: Python 3.11+ strictly following **Functional Programming** (pure functions, immutable Pydantic models).
 - **Package Manager**: Managed with [`uv`](https://docs.astral.sh/uv/).
-- **Creative Reasoning**: Frontier LLMs (**GPT-5 Luna** via OpenRouter) for scene breakdown, shot extraction, and multimodal QA.
+- **Creative Reasoning**: Frontier LLMs (**GPT-5 Luna** via OpenRouter) for dynamic cast discovery from ANY literature text, scene breakdown, shot extraction, and multimodal QA.
+- **Zero Facial Fluctuation Engine**:
+  - Dynamically synthesizes high-fidelity **canonical visual character turnaround sheets** (`output/characters/{char_id}_sheet.png`).
+  - Anchors every subsequent shot keyframe directly onto the character sheet image via **PuLID-Flux / IP-Adapter**, guaranteeing face consistency across all shots.
 - **Rendering & Synthesis**: Open-source models running in headless **ComfyUI on Modal**:
   - **Flux.1-Dev + PuLID-Flux**: Identity-locked facial keyframes (A10G).
   - **Wan 2.2 14B / LTX-Video**: High-coherence Image-to-Video generation (H100/A100).
