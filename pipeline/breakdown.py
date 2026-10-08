@@ -9,7 +9,7 @@ import os
 from typing import Any, Dict, Optional, Tuple
 import httpx
 
-from pipeline.models import DialogueLine, SceneOutline, ShotJob
+from pipeline.models import BreakdownResult, CharacterProfile, DialogueLine, SceneOutline, ShotJob
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -51,26 +51,46 @@ def _call_llm(
         return json.loads(content)
 
 
-def breakdown_chapter_to_shots(
-    chapter_text: str,
-    chapter_num: int,
+def breakdown_story_and_characters(
+    story_text: str,
+    chapter_num: int = 1,
     model: str = "openai/gpt-5-luna",
     api_key: Optional[str] = None,
-) -> Tuple[ShotJob, ...]:
-    """Transforms a raw novel chapter text into an immutable sequence of ShotJobs."""
+) -> BreakdownResult:
+    """Discovers characters dynamically from ANY story/novel text and generates mapped shots."""
     system_prompt = (
-        "You are an elite cinematic director and screenwriter. "
-        "Your task is to break down the provided novel text into a chronological sequence of film shots. "
-        "For each shot, specify: shot_type (close_up, medium, wide, over_the_shoulder), "
-        "characters present, speaker (if any), dialogue lines, whether lip_sync is required, "
-        "a visual prompt optimized for diffusion (Flux), mood, and estimated duration in seconds (usually 3.0 to 6.0s). "
-        "Respond ONLY with a JSON object containing a 'shots' array."
+        "You are an elite Hollywood director and screenwriter adapting literature into cinema. "
+        "Read the provided text and do two things:\n"
+        "1. DYNAMIC CHARACTER DISCOVERY: Extract all characters present in the text to create a Character Sheet. "
+        "For each character specify: id (lowercase slug e.g. 'alice', 'dracula', 'victor'), name, gender, age, "
+        "appearance (rich visual details for Flux diffusion: clothing, face, hair, lighting), "
+        "personality_tone, voice_timbre (vocal traits for audio synthesis).\n"
+        "2. CINEMATIC SHOT BREAKDOWN: Break the story chronologically into film shots mapped to those character IDs. "
+        "For each shot specify: shot_type (close_up, medium, wide, over_the_shoulder), characters (list of ids), "
+        "speaker (character id or null), dialogue (list of {character: id, text: str}), "
+        "lip_sync_required (true for speaking close-ups/mediums), visual_prompt (for Flux), mood, duration_sec (3.0-6.0).\n"
+        "Respond ONLY with a JSON object with keys: 'characters' (array of character objects) and 'shots' (array of shot objects)."
     )
 
-    prompt = f"Chapter {chapter_num} text:\n\n{chapter_text}"
+    prompt = f"Story / Chapter {chapter_num} text:\n\n{story_text}"
     response_data = _call_llm(prompt, system_prompt, model, api_key)
-    raw_shots = response_data.get("shots", [])
 
+    raw_chars = response_data.get("characters", [])
+    character_profiles = []
+    for c in raw_chars:
+        cid = str(c.get("id") or c.get("name", "char")).lower().replace(" ", "_")
+        profile = CharacterProfile(
+            char_id=cid,
+            name=c.get("name", cid.title()),
+            gender=c.get("gender", "unknown"),
+            age=str(c.get("age", "adult")),
+            appearance_description=c.get("appearance", c.get("appearance_description", "")),
+            personality_tone=c.get("personality_tone", "dramatic"),
+            voice_timbre=c.get("voice_timbre", "natural speaking voice"),
+        )
+        character_profiles.append(profile)
+
+    raw_shots = response_data.get("shots", [])
     shot_jobs = []
     for idx, s in enumerate(raw_shots, start=1):
         dialogue_tuples = tuple(
@@ -99,4 +119,18 @@ def breakdown_chapter_to_shots(
         )
         shot_jobs.append(shot)
 
-    return tuple(shot_jobs)
+    return BreakdownResult(
+        characters=tuple(character_profiles),
+        shots=tuple(shot_jobs),
+    )
+
+
+def breakdown_chapter_to_shots(
+    chapter_text: str,
+    chapter_num: int = 1,
+    model: str = "openai/gpt-5-luna",
+    api_key: Optional[str] = None,
+) -> Tuple[ShotJob, ...]:
+    """Backward-compatible helper returning only shots."""
+    result = breakdown_story_and_characters(chapter_text, chapter_num, model, api_key)
+    return result.shots
