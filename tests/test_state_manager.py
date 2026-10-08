@@ -57,3 +57,40 @@ def test_sqlite_state_lifecycle():
         # List filter
         all_shots = list_shots(db_path)
         assert len(all_shots) == 1
+
+
+def test_character_profile_persistence():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        db_path = str(Path(tmp_dir) / "test_chars.db")
+        init_database(db_path)
+
+        from pipeline.models import CharacterProfile
+        from pipeline.state_manager import (
+            get_character,
+            get_character_dict,
+            list_characters,
+            save_character,
+        )
+
+        char1 = CharacterProfile(
+            char_id="dracula",
+            name="Count Dracula",
+            gender="male",
+            age="ancient",
+            appearance_description="Pale aristocratic vampire in black cape.",
+            personality_tone="menacing",
+            voice_timbre="deep aristocratic Romanian accent",
+        )
+        save_character(db_path, char1)
+
+        retrieved = get_character(db_path, "dracula")
+        assert retrieved is not None
+        assert retrieved.name == "Count Dracula"
+        assert retrieved.voice_timbre == "deep aristocratic Romanian accent"
+
+        all_chars = list_characters(db_path)
+        assert len(all_chars) == 1
+        assert all_chars[0].char_id == "dracula"
+
+        char_dict = get_character_dict(db_path)
+        assert "dracula" in char_dict
