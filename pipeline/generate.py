@@ -10,7 +10,7 @@ Executes the step-by-step rendering pipeline for a single shot:
 
 import os
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pipeline.audio import generate_shot_dialogue_audio
 from pipeline.bibles import (
@@ -23,20 +23,29 @@ from pipeline.comfy_client import (
     save_media_bytes,
 )
 from pipeline.judge import evaluate_shot_clip
-from pipeline.models import CharacterVisualProfile, CharacterVoiceProfile, ShotJob
-from pipeline.state_manager import update_shot_state
+from pipeline.models import CharacterProfile, CharacterVisualProfile, CharacterVoiceProfile, ShotJob
+from pipeline.state_manager import get_character_dict, update_shot_state
 
 
 def process_single_shot(
     shot: ShotJob,
     db_path: str,
-    visual_profiles: Dict[str, CharacterVisualProfile],
-    voice_profiles: Dict[str, CharacterVoiceProfile],
+    visual_profiles: Optional[Dict[str, Any]] = None,
+    voice_profiles: Optional[Dict[str, Any]] = None,
     output_dir: str = "./output",
     retry_cap: int = 3,
     mock_rendering: bool = False,
 ) -> ShotJob:
-    """Executes the complete generation and QA lifecycle for a single shot."""
+    """Executes the complete generation and QA lifecycle for a single shot.
+
+    Dynamically resolves character sheets from SQLite if not provided.
+    """
+    # Auto-resolve dynamic character profiles from SQLite if omitted
+    if visual_profiles is None:
+        visual_profiles = get_character_dict(db_path)
+    if voice_profiles is None:
+        voice_profiles = visual_profiles
+
     # Step 1: Audio Synthesis
     audio_path = shot.audio_path
     if not audio_path and shot.dialogue:
@@ -62,7 +71,14 @@ def process_single_shot(
             import modal
             worker = modal.Cls.from_name("novel-to-movie-comfy", "KeyframeComfyWorker")()
             template = load_workflow_template("modal_app/workflows/flux_pulid_api.json")
-            wf = inject_workflow_params(template, {"PROMPT": shot.visual_prompt, "seed": shot.seed})
+
+            # Enrich visual prompt with dynamic character appearance from character sheet
+            char_profile = visual_profiles.get(shot.speaker.lower()) if shot.speaker else None
+            prompt_text = shot.visual_prompt
+            if char_profile and getattr(char_profile, "appearance_description", None):
+                prompt_text = f"{shot.visual_prompt}. Character details: {char_profile.appearance_description}"
+
+            wf = inject_workflow_params(template, {"PROMPT": prompt_text, "seed": shot.seed})
             img_bytes = worker.run_workflow.remote(wf)
             keyframe_path = save_media_bytes(img_bytes, keyframe_out)
 
