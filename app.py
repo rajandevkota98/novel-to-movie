@@ -18,11 +18,19 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from pipeline.assemble import build_concat_list_file, concatenate_clips
-from pipeline.bibles import load_character_bibles_from_yaml, load_voice_bibles_from_yaml
-from pipeline.breakdown import breakdown_chapter_to_shots
+from pipeline.bibles import export_character_sheet_json, load_character_bibles_from_yaml
+from pipeline.breakdown import breakdown_story_and_characters
 from pipeline.generate import process_single_shot
-from pipeline.models import ShotJob
-from pipeline.state_manager import get_shot, init_database, list_shots, save_shots_batch
+from pipeline.models import CharacterProfile, DialogueLine, ShotJob
+from pipeline.state_manager import (
+    get_character_dict,
+    get_shot,
+    init_database,
+    list_characters,
+    list_shots,
+    save_characters_batch,
+    save_shots_batch,
+)
 
 app = FastAPI(title="Novel-to-Movie AI Studio")
 
@@ -51,7 +59,25 @@ class BreakdownRequest(BaseModel):
 def on_startup():
     """Initializes database on app boot."""
     cfg = _get_config()
-    init_database(cfg["storage"]["database_path"])
+    db_path = cfg["storage"]["database_path"]
+    init_database(db_path)
+
+    # Seed initial characters if database is empty
+    if not list_characters(db_path):
+        legacy = load_character_bibles_from_yaml("assets/characters.yaml")
+        initial_chars = [
+            CharacterProfile(
+                char_id=cid,
+                name=c.name,
+                gender=c.gender,
+                age=c.age,
+                appearance_description=c.appearance_description,
+                personality_tone="dramatic",
+                voice_timbre="British period drama voice",
+            )
+            for cid, c in legacy.items()
+        ]
+        save_characters_batch(db_path, initial_chars)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -60,9 +86,9 @@ async def home(request: Request):
     cfg = _get_config()
     db_path = cfg["storage"]["database_path"]
 
-    # Load state
+    # Load state dynamically from SQLite
     shots = list_shots(db_path)
-    characters = load_character_bibles_from_yaml("assets/characters.yaml")
+    characters = list_characters(db_path)
 
     sample_text = ""
     sample_file = Path("data/sample_chapter.txt")
@@ -82,21 +108,52 @@ async def home(request: Request):
 
 @app.post("/api/breakdown")
 async def api_breakdown(req: BreakdownRequest):
-    """Executes script breakdown on provided chapter text."""
+    """Dynamically extracts Character Sheet and Shot List from ANY story text."""
     cfg = _get_config()
     db_path = cfg["storage"]["database_path"]
 
     try:
-        shots = breakdown_chapter_to_shots(
-            chapter_text=req.chapter_text,
+        result = breakdown_story_and_characters(
+            story_text=req.chapter_text,
             chapter_num=req.chapter_num,
             model=cfg["models"]["breakdown"],
         )
-        save_shots_batch(db_path, shots)
-        return {"status": "success", "count": len(shots)}
+        save_characters_batch(db_path, result.characters)
+        save_shots_batch(db_path, result.shots)
+        export_character_sheet_json(result.characters, "output/character_sheet.json")
+        return {
+            "status": "success",
+            "characters_count": len(result.characters),
+            "shots_count": len(result.shots),
+        }
     except Exception as e:
-        # Fallback for testing when no OpenRouter API key is provided
-        from pipeline.models import DialogueLine
+        # Fallback dynamic discovery for testing when no API key is provided
+        # Generates character sheets based on the text submitted
+        words = [w.strip('",.?!') for w in req.chapter_text.split() if w.istitle() and len(w) > 3][:4]
+        primary_name = words[0] if words else "Protagonist"
+        second_name = words[1] if len(words) > 1 else "Companion"
+
+        mock_chars = (
+            CharacterProfile(
+                char_id=primary_name.lower(),
+                name=primary_name,
+                gender="female" if "she" in req.chapter_text.lower() else "male",
+                age="20s-30s",
+                appearance_description=f"Distinctive appearance for {primary_name}, detailed cinematic costume and features.",
+                personality_tone="determined",
+                voice_timbre="clear expressive dramatic voice",
+            ),
+            CharacterProfile(
+                char_id=second_name.lower(),
+                name=second_name,
+                gender="male" if "he" in req.chapter_text.lower() else "female",
+                age="30s-40s",
+                appearance_description=f"Distinctive appearance for {second_name}, contrasting lighting and presence.",
+                personality_tone="intense",
+                voice_timbre="deep resonant vocal timbre",
+            ),
+        )
+
         mock_shots = (
             ShotJob(
                 shot_id=f"ch{req.chapter_num:02d}_sc01_sh001",
@@ -104,13 +161,13 @@ async def api_breakdown(req: BreakdownRequest):
                 chapter_num=req.chapter_num,
                 scene_num=1,
                 shot_type="wide",
-                characters=("mrs_bennet", "mr_bennet"),
+                characters=(mock_chars[0].char_id, mock_chars[1].char_id),
                 speaker=None,
                 dialogue=(),
                 lip_sync_required=False,
-                visual_prompt="Regency parlour room, sunlight streaming through windows.",
-                mood="domestic",
-                target_duration_sec=3.0,
+                visual_prompt=f"Establishing shot of the story environment. {mock_chars[0].name} and {mock_chars[1].name} in composition.",
+                mood="atmospheric",
+                target_duration_sec=3.5,
                 status="queued",
             ),
             ShotJob(
@@ -119,18 +176,26 @@ async def api_breakdown(req: BreakdownRequest):
                 chapter_num=req.chapter_num,
                 scene_num=1,
                 shot_type="close_up",
-                characters=("mrs_bennet",),
-                speaker="mrs_bennet",
-                dialogue=(DialogueLine(character="mrs_bennet", text="My dear Mr. Bennet!"),),
+                characters=(mock_chars[0].char_id,),
+                speaker=mock_chars[0].char_id,
+                dialogue=(DialogueLine(character=mock_chars[0].char_id, text=f"Dialogue spoken by {mock_chars[0].name}."),),
                 lip_sync_required=True,
-                visual_prompt="Close-up of Mrs. Bennet, expressive eager eyes.",
-                mood="excitable",
-                target_duration_sec=3.5,
+                visual_prompt=f"Close-up portrait of {mock_chars[0].name}, focused lighting.",
+                mood="tense",
+                target_duration_sec=3.0,
                 status="queued",
             ),
         )
+
+        save_characters_batch(db_path, mock_chars)
         save_shots_batch(db_path, mock_shots)
-        return {"status": "success (mock)", "count": len(mock_shots), "warning": str(e)}
+        export_character_sheet_json(mock_chars, "output/character_sheet.json")
+        return {
+            "status": "success (mock discovery)",
+            "characters_count": len(mock_chars),
+            "shots_count": len(mock_shots),
+            "warning": str(e),
+        }
 
 
 @app.post("/api/render/{shot_id}")
