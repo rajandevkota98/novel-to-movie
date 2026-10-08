@@ -77,7 +77,8 @@ vidoe-generation/
 │   ├── comfy_server.py             # Headless ComfyUI runner deployed as Modal App
 │   ├── f5_tts_server.py            # F5-TTS zero-shot voice synthesis Modal worker
 │   └── workflows/
-│       ├── flux_pulid_api.json      # ComfyUI API template for Flux + PuLID
+│       ├── flux_text2img_api.json   # ComfyUI API template for canonical character sheet synthesis
+│       ├── flux_pulid_api.json      # ComfyUI API template for Flux + PuLID identity locking
 │       ├── wan2_i2v_api.json        # ComfyUI API template for Wan 2.2 I2V
 │       ├── ltx_i2v_api.json         # ComfyUI API template for LTX-Video
 │       └── latentsync_api.json      # ComfyUI API template for LatentSync
@@ -85,8 +86,9 @@ vidoe-generation/
 │   ├── __init__.py
 │   ├── models.py                   # Pure immutable data models (Pydantic frozen=True)
 │   ├── state_manager.py            # Functional SQLite state tracking & idempotency
-│   ├── breakdown.py                # Functional novel chunking & shot extractor (GPT-5)
-│   ├── bibles.py                   # Functional character & voice profile mapping
+│   ├── breakdown.py                # Functional novel chunking & dynamic cast extractor
+│   ├── character_sheet.py          # Functional visual character turnaround sheet synthesis
+│   ├── bibles.py                   # Character & voice profile JSON export/import helpers
 │   ├── comfy_client.py             # Functional HTTP client for Modal ComfyUI endpoints
 │   ├── audio.py                    # Functional TTS dispatcher and audio duration analyzer
 │   ├── judge.py                    # Functional multimodal QA gate & retry logic
