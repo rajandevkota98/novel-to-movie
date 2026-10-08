@@ -1,0 +1,30 @@
+characters:
+  mrs_bennet:
+    name: "Mrs. Bennet"
+    gender: "female"
+    age: "late 40s"
+    appearance_description: "An excitable Regency English woman in floral cap and morning gown, fluttering fan, anxious expressive eyes, medium fair skin."
+    reference_image_paths:
+      - "assets/characters/mrs_bennet_ref.png"
+    reference_audio: "assets/voices/mrs_bennet_ref.wav"
+    reference_transcript: "Oh Mr. Bennet, you take delight in vexing me!"
+
+  mr_bennet:
+    name: "Mr. Bennet"
+    gender: "male"
+    age: "early 50s"
+    appearance_description: "An ironic English gentleman with spectacles, grey-streaked brown hair, dark tailcoat, seated in an armchair with book, slight smirk."
+    reference_image_paths:
+      - "assets/characters/mr_bennet_ref.png"
+    reference_audio: "assets/voices/mr_bennet_ref.wav"
+    reference_transcript: "You have no compassion for my poor nerves."
+
+  elizabeth:
+    name: "Elizabeth Bennet"
+    gender: "female"
+    age: "early 20s"
+    appearance_description: "Intelligent young woman with fine dark expressive eyes, light brown curls, modest cream cotton dress, warm confident smile."
+    reference_image_paths:
+      - "assets/characters/elizabeth_ref.png"
+    reference_audio: "assets/voices/elizabeth_ref.wav"
+    reference_transcript: "I could easily forgive his pride, if he had not mortified mine."
