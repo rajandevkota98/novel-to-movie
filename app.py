@@ -10,7 +10,10 @@ Provides interactive endpoints and a dark-mode web dashboard for:
 import os
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 import yaml
+
+load_dotenv()
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
