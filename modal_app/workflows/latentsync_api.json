@@ -1,0 +1,18 @@
+{
+  "1": {
+    "inputs": {
+      "video": "{{VIDEO_PATH}}",
+      "audio": "{{AUDIO_PATH}}"
+    },
+    "class_type": "LatentSyncNode"
+  },
+  "2": {
+    "inputs": {
+      "filename_prefix": "latentsync_synced",
+      "fps": 16,
+      "images": ["1", 0],
+      "audio": ["1", 1]
+    },
+    "class_type": "VHS_VideoCombine"
+  }
+}
