@@ -11,10 +11,19 @@ from rich.console import Console
 from rich.table import Table
 
 from pipeline.assemble import build_concat_list_file, concatenate_clips, mix_scene_audio
-from pipeline.bibles import load_character_bibles_from_yaml, load_voice_bibles_from_yaml
-from pipeline.breakdown import breakdown_chapter_to_shots
+from pipeline.bibles import export_character_sheet_json, load_character_bibles_from_yaml, load_voice_bibles_from_yaml
+from pipeline.breakdown import breakdown_story_and_characters
 from pipeline.generate import process_single_shot
-from pipeline.state_manager import get_shot, init_database, list_shots, save_shots_batch
+from pipeline.models import CharacterProfile
+from pipeline.state_manager import (
+    get_character_dict,
+    get_shot,
+    init_database,
+    list_characters,
+    list_shots,
+    save_characters_batch,
+    save_shots_batch,
+)
 
 app = typer.Typer(help="Novel-to-Movie AI Pipeline CLI")
 console = Console()
@@ -41,7 +50,7 @@ def breakdown(
     chapter_num: int = typer.Option(1, help="Chapter number"),
     config: str = "config.yaml",
 ):
-    """Parses a novel chapter into structured shot jobs using frontier LLM."""
+    """Dynamically discovers characters and parses shots from ANY novel text."""
     cfg = _load_config(config)
     db_path = cfg["storage"]["database_path"]
     init_database(db_path)
@@ -54,15 +63,36 @@ def breakdown(
     with open(text_path, "r", encoding="utf-8") as f:
         chapter_text = f.read()
 
-    console.print(f"[cyan]Parsing Chapter {chapter_num} with model {cfg['models']['breakdown']}...[/cyan]")
-    shots = breakdown_chapter_to_shots(
-        chapter_text=chapter_text,
+    console.print(f"[cyan]Analyzing story with model {cfg['models']['breakdown']}...[/cyan]")
+    result = breakdown_story_and_characters(
+        story_text=chapter_text,
         chapter_num=chapter_num,
         model=cfg["models"]["breakdown"],
     )
 
-    save_shots_batch(db_path, shots)
-    console.print(f"[green]✓ Successfully generated {len(shots)} shots and saved to {db_path}[/green]")
+    save_characters_batch(db_path, result.characters)
+    save_shots_batch(db_path, result.shots)
+    export_character_sheet_json(result.characters, "output/character_sheet.json")
+
+    # Display Character Sheet
+    char_table = Table(title="🎭 Discovered Character Sheet")
+    char_table.add_column("ID", style="cyan")
+    char_table.add_column("Name", style="green")
+    char_table.add_column("Gender/Age", style="yellow")
+    char_table.add_column("Voice Timbre", style="magenta")
+    char_table.add_column("Appearance Spec", style="white")
+
+    for c in result.characters:
+        char_table.add_row(
+            c.char_id,
+            c.name,
+            f"{c.gender}, {c.age}",
+            c.voice_timbre,
+            c.appearance_description[:60] + "..." if len(c.appearance_description) > 60 else c.appearance_description,
+        )
+    console.print(char_table)
+
+    console.print(f"[green]✓ Generated {len(result.characters)} character profiles and {len(result.shots)} shots.[/green]")
 
 
 @app.command()
@@ -80,15 +110,14 @@ def render_shot(
         console.print(f"[red]Shot {shot_id} not found in database.[/red]")
         raise typer.Exit(1)
 
-    visual_profiles = load_character_bibles_from_yaml("assets/characters.yaml")
-    voice_profiles = load_voice_bibles_from_yaml("assets/characters.yaml")
+    char_dict = get_character_dict(db_path)
 
     console.print(f"[cyan]Processing shot {shot_id} (Status: {shot.status})...[/cyan]")
     result = process_single_shot(
         shot=shot,
         db_path=db_path,
-        visual_profiles=visual_profiles,
-        voice_profiles=voice_profiles,
+        visual_profiles=char_dict,
+        voice_profiles=char_dict,
         output_dir=cfg["project"]["output_dir"],
         retry_cap=cfg["quality_gate"]["retry_cap"],
         mock_rendering=mock,
@@ -110,16 +139,15 @@ def render_all(
         console.print("[yellow]No queued shots found.[/yellow]")
         return
 
-    visual_profiles = load_character_bibles_from_yaml("assets/characters.yaml")
-    voice_profiles = load_voice_bibles_from_yaml("assets/characters.yaml")
+    char_dict = get_character_dict(db_path)
 
-    console.print(f"[cyan]Rendering {len(shots)} shots...[/cyan]")
+    console.print(f"[cyan]Rendering {len(shots)} shots with dynamic character sheets...[/cyan]")
     for shot in shots:
         process_single_shot(
             shot=shot,
             db_path=db_path,
-            visual_profiles=visual_profiles,
-            voice_profiles=voice_profiles,
+            visual_profiles=char_dict,
+            voice_profiles=char_dict,
             output_dir=cfg["project"]["output_dir"],
             retry_cap=cfg["quality_gate"]["retry_cap"],
             mock_rendering=mock,
@@ -162,12 +190,24 @@ def status(config: str = "config.yaml"):
     cfg = _load_config(config)
     db_path = cfg["storage"]["database_path"]
 
+    # Display Discovered Characters
+    chars = list_characters(db_path)
+    if chars:
+        char_table = Table(title="🎭 Active Character Sheet")
+        char_table.add_column("ID", style="cyan")
+        char_table.add_column("Name", style="green")
+        char_table.add_column("Gender/Age", style="yellow")
+        char_table.add_column("Voice Timbre", style="magenta")
+        for c in chars:
+            char_table.add_row(c.char_id, c.name, f"{c.gender}, {c.age}", c.voice_timbre)
+        console.print(char_table)
+
     shots = list_shots(db_path)
     if not shots:
         console.print("[yellow]No shots found in queue. Run breakdown first.[/yellow]")
         return
 
-    table = Table(title="Novel-to-Movie Production Queue")
+    table = Table(title="🎞️ Production Shot Queue")
     table.add_column("Shot ID", style="cyan")
     table.add_column("Type", style="magenta")
     table.add_column("Speaker", style="yellow")
