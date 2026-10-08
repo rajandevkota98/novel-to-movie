@@ -74,3 +74,40 @@ def test_process_single_shot_mock():
         assert Path(result.video_path).exists()
         assert result.synced_path is not None
         assert Path(result.synced_path).exists()
+
+
+def test_dynamic_character_sheet_export_and_load():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        from pipeline.bibles import export_character_sheet_json, load_character_sheet_json
+        from pipeline.models import CharacterProfile
+
+        profiles = [
+            CharacterProfile(
+                char_id="victor",
+                name="Victor Frankenstein",
+                gender="male",
+                age="20s",
+                appearance_description="Pale gaunt Swiss student in velvet coat with disheveled brown hair.",
+                personality_tone="obsessive",
+                voice_timbre="intense nervous Swiss-accented voice",
+            ),
+            CharacterProfile(
+                char_id="creature",
+                name="The Creature",
+                gender="male",
+                age="unknown",
+                appearance_description="Eight-foot-tall figure with watery yellow eyes, translucent yellowish skin.",
+                personality_tone="melancholic, vengeful",
+                voice_timbre="deep guttural resonant tone",
+            ),
+        ]
+
+        json_path = Path(tmp_dir) / "character_sheet.json"
+        export_character_sheet_json(profiles, str(json_path))
+        assert json_path.exists()
+
+        loaded = load_character_sheet_json(str(json_path))
+        assert "victor" in loaded
+        assert "creature" in loaded
+        assert loaded["victor"].name == "Victor Frankenstein"
+        assert loaded["creature"].personality_tone == "melancholic, vengeful"
