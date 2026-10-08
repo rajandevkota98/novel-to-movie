@@ -10,9 +10,9 @@ project:
 
 models:
   # Script Breakdown & Creative Direction
-  breakdown: "openai/gpt-5-luna"       # OpenRouter model ID (fallback: claude-3-7-sonnet)
+  breakdown: "nvidia/nemotron-3-super-120b-a12b:free"
   # Multimodal Quality Gate Judge
-  judge: "openai/gpt-5-luna"           # Multimodal model for frame evaluation
+  judge: "nvidia/nemotron-3-super-120b-a12b:free"
   # Video Generation Engine (ComfyUI on Modal)
   video_engine: "wan2.2"               # "wan2.2" (14B quality default) or "ltx" (fast iteration)
   # Voice Synthesis Engine (Modal Worker)
