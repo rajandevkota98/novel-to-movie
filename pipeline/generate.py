@@ -61,25 +61,62 @@ def process_single_shot(
     keyframe_path = shot.keyframe_path
     if not keyframe_path:
         keyframe_out = f"{output_dir}/keyframes/{shot.shot_id}.png"
+        Path(keyframe_out).parent.mkdir(parents=True, exist_ok=True)
+
+        char_profile = visual_profiles.get(shot.speaker.lower()) if shot.speaker else None
+        prompt_text = shot.visual_prompt
+        if char_profile and getattr(char_profile, "appearance_description", None):
+            prompt_text = f"{shot.visual_prompt}. Character details: {char_profile.appearance_description}"
+
+        has_ref_image = bool(
+            char_profile
+            and getattr(char_profile, "reference_image_paths", None)
+            and Path(char_profile.reference_image_paths[0]).is_file()
+        )
+
         if mock_rendering or not os.environ.get("MODAL_TOKEN_ID"):
-            # Functional placeholder for local verification
-            Path(keyframe_out).parent.mkdir(parents=True, exist_ok=True)
-            with open(keyframe_out, "wb") as f:
-                f.write(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82")
+            # Functional visual keyframe placeholder
+            from PIL import Image, ImageDraw
+            img = Image.new("RGB", (1024, 576), color=(20, 24, 39))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([20, 20, 1004, 556], outline=(59, 130, 246), width=2)
+            draw.text((512, 180), f"KEYFRAME: {shot.shot_id.upper()}", fill=(248, 250, 252), anchor="mm")
+            draw.text((512, 230), f"Shot Type: {shot.shot_type} | Mood: {shot.mood}", fill=(148, 163, 184), anchor="mm")
+            anchor_info = (
+                f"Anchored to Sheet: {char_profile.name} ({char_profile.reference_image_paths[0]})"
+                if has_ref_image
+                else "Scene Shot (No Face Anchor)"
+            )
+            draw.text((512, 280), anchor_info, fill=(52, 211, 153), anchor="mm")
+            preview_prompt = prompt_text[:85] + "..." if len(prompt_text) > 85 else prompt_text
+            draw.text((512, 330), preview_prompt, fill=(203, 213, 225), anchor="mm")
+            img.save(keyframe_out, format="PNG")
             keyframe_path = str(Path(keyframe_out).resolve())
         else:
             import modal
             worker = modal.Cls.from_name("novel-to-movie-comfy", "KeyframeComfyWorker")()
-            template = load_workflow_template("modal_app/workflows/flux_pulid_api.json")
 
-            # Enrich visual prompt with dynamic character appearance from character sheet
-            char_profile = visual_profiles.get(shot.speaker.lower()) if shot.speaker else None
-            prompt_text = shot.visual_prompt
-            if char_profile and getattr(char_profile, "appearance_description", None):
-                prompt_text = f"{shot.visual_prompt}. Character details: {char_profile.appearance_description}"
+            if has_ref_image:
+                template = load_workflow_template("modal_app/workflows/flux_pulid_api.json")
+                ref_path = Path(char_profile.reference_image_paths[0])
+                ref_filename = f"{getattr(char_profile, 'char_id', 'char')}_ref.png"
+                wf = inject_workflow_params(template, {
+                    "PROMPT": prompt_text,
+                    "seed": shot.seed,
+                    "CHARACTER_REF_IMAGE": ref_filename,
+                })
+                img_bytes = worker.run_workflow.remote(
+                    workflow_json=wf,
+                    input_files={ref_filename: ref_path.read_bytes()},
+                )
+            else:
+                template = load_workflow_template("modal_app/workflows/flux_text2img_api.json")
+                wf = inject_workflow_params(template, {
+                    "PROMPT": prompt_text,
+                    "seed": shot.seed,
+                })
+                img_bytes = worker.run_workflow.remote(workflow_json=wf)
 
-            wf = inject_workflow_params(template, {"PROMPT": prompt_text, "seed": shot.seed})
-            img_bytes = worker.run_workflow.remote(wf)
             keyframe_path = save_media_bytes(img_bytes, keyframe_out)
 
         shot = update_shot_state(db_path, shot.shot_id, "keyframe_ready", keyframe_path=keyframe_path)
