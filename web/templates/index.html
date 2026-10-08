@@ -91,24 +91,35 @@
           <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             🎭 Dynamic Character Sheet
           </h2>
-          <span class="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded font-mono">LLM Discovered</span>
+          <span class="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded font-mono">PuLID Anchored</span>
         </div>
-        <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">Auto-extracted from story text. Maps visual prompts & vocal profiles dynamically.</p>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-[11px] text-slate-400 leading-relaxed">Canonical visual sheets locked to eliminate face fluctuation across shots.</p>
+          <button onclick="generateSheets()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 px-2 py-1 rounded border border-slate-700 transition">
+            Sync Sheets
+          </button>
+        </div>
         <div class="space-y-3">
           {% for char in characters %}
-          <div class="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg">
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs font-bold text-slate-200">{{ char.name }}</span>
-              <span class="text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.5 rounded">{{ char.gender }}, {{ char.age }}</span>
-            </div>
-            <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mb-2">{{ char.appearance_description }}</p>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-[10px] text-indigo-400 bg-indigo-950/50 border border-indigo-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
-                🎤 {{ char.voice_timbre }}
-              </span>
-              <span class="text-[10px] text-amber-400 bg-amber-950/50 border border-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
-                🎭 {{ char.personality_tone }}
-              </span>
+          <div class="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg hover:border-slate-700 transition flex gap-3">
+            <a href="/output/characters/{{ char.char_id }}_sheet.png" target="_blank" title="View canonical character turnaround sheet" class="shrink-0 relative group block">
+              <img src="/output/characters/{{ char.char_id }}_sheet.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\'><rect width=\'64\' height=\'64\' fill=\'%231e293b\'/><text x=\'32\' y=\'36\' fill=\'%2394a3b8\' font-size=\'10\' text-anchor=\'middle\'>Sheet</text></svg>'" class="w-16 h-16 rounded-md object-cover border border-slate-700 group-hover:border-indigo-400 transition bg-slate-900 shadow" alt="{{ char.name }}" />
+              <span class="absolute bottom-0 right-0 bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 text-[8px] font-mono px-1 rounded-tl">ANCHOR</span>
+            </a>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-bold text-slate-200 truncate">{{ char.name }}</span>
+                <span class="text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.5 rounded shrink-0">{{ char.gender }}, {{ char.age }}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mb-2">{{ char.appearance_description }}</p>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-[10px] text-indigo-400 bg-indigo-950/50 border border-indigo-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono truncate">
+                  🎤 {{ char.voice_timbre }}
+                </span>
+                <span class="text-[10px] text-amber-400 bg-amber-950/50 border border-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                  🎭 {{ char.personality_tone }}
+                </span>
+              </div>
             </div>
           </div>
           {% endfor %}
@@ -179,18 +190,25 @@
             </div>
           </div>
 
-          <!-- Prompt & Dialogue -->
-          <div class="mt-3 text-xs space-y-1.5">
-            <p class="text-slate-300 leading-relaxed font-sans">
-              <strong class="text-slate-400">Visual Prompt:</strong> {{ shot.visual_prompt }}
-            </p>
-            {% if shot.dialogue %}
-            <div class="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-slate-200 font-serif italic text-xs">
-              {% for d in shot.dialogue %}
-              "{{ d.text }}"
-              {% endfor %}
-            </div>
+          <!-- Prompt & Dialogue & Keyframe Preview -->
+          <div class="mt-3 text-xs flex gap-3">
+            {% if shot.keyframe_path %}
+            <a href="/output/keyframes/{{ shot.shot_id }}.png" target="_blank" title="View generated keyframe" class="shrink-0 group block">
+              <img src="/output/keyframes/{{ shot.shot_id }}.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'96\' height=\'54\'><rect width=\'96\' height=\'54\' fill=\'%231e293b\'/><text x=\'48\' y=\'30\' fill=\'%2394a3b8\' font-size=\'9\' text-anchor=\'middle\'>Keyframe</text></svg>'" class="w-24 h-14 rounded-md object-cover border border-slate-700 group-hover:border-indigo-400 bg-slate-950 shadow" alt="Keyframe {{ shot.shot_id }}" />
+            </a>
             {% endif %}
+            <div class="flex-1 space-y-1.5 min-w-0">
+              <p class="text-slate-300 leading-relaxed font-sans">
+                <strong class="text-slate-400">Visual Prompt:</strong> {{ shot.visual_prompt }}
+              </p>
+              {% if shot.dialogue %}
+              <div class="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-slate-200 font-serif italic text-xs">
+                {% for d in shot.dialogue %}
+                "{{ d.text }}"
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
           </div>
 
           <!-- Footer details & Actions -->
@@ -291,6 +309,18 @@
       } finally {
         btn.disabled = false;
         btn.innerText = "⚡ Break Down Script";
+      }
+    }
+
+    async function generateSheets() {
+      logMessage("Generating/syncing canonical visual character sheets...");
+      try {
+        const res = await fetch('/api/characters/generate-sheets?mock=true', { method: 'POST' });
+        const data = await res.json();
+        logMessage(`Character sheets synced: ${data.count} sheets ready.`);
+        setTimeout(() => location.reload(), 800);
+      } catch (err) {
+        logMessage(`Error syncing sheets: ${err.message}`);
       }
     }
 
