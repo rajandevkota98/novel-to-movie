@@ -1,0 +1,49 @@
+# Novel-to-Movie AI Pipeline Configuration
+
+project:
+  name: "novel-to-movie"
+  output_dir: "./output"
+  target_fps: 24
+  target_resolution:
+    width: 1920
+    height: 1080
+
+models:
+  # Script Breakdown & Creative Direction
+  breakdown: "openai/gpt-5-luna"       # OpenRouter model ID (fallback: claude-3-7-sonnet)
+  # Multimodal Quality Gate Judge
+  judge: "openai/gpt-5-luna"           # Multimodal model for frame evaluation
+  # Video Generation Engine (ComfyUI on Modal)
+  video_engine: "wan2.2"               # "wan2.2" (14B quality default) or "ltx" (fast iteration)
+  # Voice Synthesis Engine (Modal Worker)
+  tts_engine: "f5-tts"                 # Self-hosted F5-TTS zero-shot voice cloning
+
+generation:
+  clip_duration_sec: 5.0
+  keyframe_model: "flux1-dev"
+  face_adapter: "pulid-flux"
+  enable_lipsync: true                 # Run LatentSync on dialogue close-ups
+
+quality_gate:
+  retry_cap: 3
+  thresholds:
+    character_consistency: 4           # 1 to 5 scale
+    prompt_adherence: 4                # 1 to 5 scale
+    motion_quality: 3                  # 1 to 5 scale
+
+modal:
+  comfy_app_name: "novel-to-movie-comfy"
+  tts_app_name: "novel-to-movie-tts"
+  volume_name: "comfy-models-volume"
+  keyframe_gpu: "A10G"
+  video_gpu: "H100"
+  tts_gpu: "L4"
+  lipsync_gpu: "A10G"
+
+storage:
+  database_path: "./output/shots.db"
+  keyframes_dir: "./output/keyframes"
+  videos_dir: "./output/videos"
+  audio_dir: "./output/audio"
+  synced_dir: "./output/synced"
+  final_dir: "./output/final"
