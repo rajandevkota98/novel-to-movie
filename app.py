@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from pipeline.assemble import build_concat_list_file, concatenate_clips
 from pipeline.bibles import export_character_sheet_json, load_character_bibles_from_yaml
 from pipeline.breakdown import breakdown_story_and_characters
+from pipeline.character_sheet import ensure_character_sheets
 from pipeline.generate import process_single_shot
 from pipeline.models import CharacterProfile, DialogueLine, ShotJob
 from pipeline.state_manager import (
@@ -57,7 +58,7 @@ class BreakdownRequest(BaseModel):
 
 @app.on_event("startup")
 def on_startup():
-    """Initializes database on app boot."""
+    """Initializes database on app boot and anchors character sheets."""
     cfg = _get_config()
     db_path = cfg["storage"]["database_path"]
     init_database(db_path)
@@ -78,6 +79,9 @@ def on_startup():
             for cid, c in legacy.items()
         ]
         save_characters_batch(db_path, initial_chars)
+
+    # Ensure canonical visual character sheets exist for all characters
+    ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=True)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -120,7 +124,8 @@ async def api_breakdown(req: BreakdownRequest):
         )
         save_characters_batch(db_path, result.characters)
         save_shots_batch(db_path, result.shots)
-        export_character_sheet_json(result.characters, "output/character_sheet.json")
+        ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=True)
+        export_character_sheet_json(list_characters(db_path), "output/character_sheet.json")
         return {
             "status": "success",
             "characters_count": len(result.characters),
@@ -189,7 +194,8 @@ async def api_breakdown(req: BreakdownRequest):
 
         save_characters_batch(db_path, mock_chars)
         save_shots_batch(db_path, mock_shots)
-        export_character_sheet_json(mock_chars, "output/character_sheet.json")
+        ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=True)
+        export_character_sheet_json(list_characters(db_path), "output/character_sheet.json")
         return {
             "status": "success (mock discovery)",
             "characters_count": len(mock_chars),
@@ -198,9 +204,19 @@ async def api_breakdown(req: BreakdownRequest):
         }
 
 
+@app.post("/api/characters/generate-sheets")
+async def api_generate_character_sheets(mock: bool = True):
+    """Generates canonical character sheet images for all characters."""
+    cfg = _get_config()
+    db_path = cfg["storage"]["database_path"]
+    updated = ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=mock)
+    export_character_sheet_json(tuple(updated.values()), "output/character_sheet.json")
+    return {"status": "success", "count": len(updated)}
+
+
 @app.post("/api/render/{shot_id}")
 async def api_render_shot(shot_id: str, mock: bool = True):
-    """Renders a single shot."""
+    """Renders a single shot using dynamic character sheet anchor."""
     cfg = _get_config()
     db_path = cfg["storage"]["database_path"]
     shot = get_shot(db_path, shot_id)
@@ -208,14 +224,14 @@ async def api_render_shot(shot_id: str, mock: bool = True):
     if not shot:
         raise HTTPException(status_code=404, detail="Shot not found")
 
-    chars = load_character_bibles_from_yaml("assets/characters.yaml")
-    voices = load_voice_bibles_from_yaml("assets/characters.yaml")
+    ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=mock)
+    chars = get_character_dict(db_path) or load_character_bibles_from_yaml("assets/characters.yaml")
 
     result = process_single_shot(
         shot=shot,
         db_path=db_path,
         visual_profiles=chars,
-        voice_profiles=voices,
+        voice_profiles=chars,
         output_dir=cfg["project"]["output_dir"],
         retry_cap=cfg["quality_gate"]["retry_cap"],
         mock_rendering=mock,
@@ -225,7 +241,7 @@ async def api_render_shot(shot_id: str, mock: bool = True):
 
 @app.post("/api/render-all")
 async def api_render_all(mock: bool = True):
-    """Batch renders all queued shots."""
+    """Batch renders all queued shots using dynamic character sheet anchors."""
     cfg = _get_config()
     db_path = cfg["storage"]["database_path"]
     shots = list_shots(db_path, status="queued")
@@ -233,15 +249,15 @@ async def api_render_all(mock: bool = True):
     if not shots:
         return {"status": "success", "message": "No queued shots to render"}
 
-    chars = load_character_bibles_from_yaml("assets/characters.yaml")
-    voices = load_voice_bibles_from_yaml("assets/characters.yaml")
+    ensure_character_sheets(db_path, cfg["project"]["output_dir"], mock=mock)
+    chars = get_character_dict(db_path) or load_character_bibles_from_yaml("assets/characters.yaml")
 
     for s in shots:
         process_single_shot(
             shot=s,
             db_path=db_path,
             visual_profiles=chars,
-            voice_profiles=voices,
+            voice_profiles=chars,
             output_dir=cfg["project"]["output_dir"],
             retry_cap=cfg["quality_gate"]["retry_cap"],
             mock_rendering=mock,
