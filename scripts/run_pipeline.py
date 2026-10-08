@@ -5,10 +5,13 @@ Follows strict functional programming conventions and is run via 'uv run'.
 
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 import typer
 import yaml
 from rich.console import Console
 from rich.table import Table
+
+load_dotenv()
 
 from pipeline.assemble import build_concat_list_file, concatenate_clips, mix_scene_audio
 from pipeline.bibles import export_character_sheet_json, load_character_bibles_from_yaml, load_voice_bibles_from_yaml
