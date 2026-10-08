@@ -13,6 +13,7 @@ from rich.table import Table
 from pipeline.assemble import build_concat_list_file, concatenate_clips, mix_scene_audio
 from pipeline.bibles import export_character_sheet_json, load_character_bibles_from_yaml, load_voice_bibles_from_yaml
 from pipeline.breakdown import breakdown_story_and_characters
+from pipeline.character_sheet import ensure_character_sheets
 from pipeline.generate import process_single_shot
 from pipeline.models import CharacterProfile
 from pipeline.state_manager import (
@@ -49,8 +50,9 @@ def breakdown(
     chapter_file: str = typer.Argument(..., help="Path to raw chapter text file"),
     chapter_num: int = typer.Option(1, help="Chapter number"),
     config: str = "config.yaml",
+    mock: bool = typer.Option(True, help="Generate visual character sheet placeholders"),
 ):
-    """Dynamically discovers characters and parses shots from ANY novel text."""
+    """Dynamically discovers characters, generates anchored character sheets, and parses shots."""
     cfg = _load_config(config)
     db_path = cfg["storage"]["database_path"]
     init_database(db_path)
@@ -72,27 +74,45 @@ def breakdown(
 
     save_characters_batch(db_path, result.characters)
     save_shots_batch(db_path, result.shots)
-    export_character_sheet_json(result.characters, "output/character_sheet.json")
+
+    console.print("[cyan]Generating and anchoring canonical visual character sheets...[/cyan]")
+    updated_chars = ensure_character_sheets(db_path, output_dir=cfg["project"]["output_dir"], mock=mock)
+    export_character_sheet_json(tuple(updated_chars.values()), "output/character_sheet.json")
 
     # Display Character Sheet
-    char_table = Table(title="🎭 Discovered Character Sheet")
+    char_table = Table(title="🎭 Discovered Character Sheet & Visual Anchors")
     char_table.add_column("ID", style="cyan")
     char_table.add_column("Name", style="green")
     char_table.add_column("Gender/Age", style="yellow")
     char_table.add_column("Voice Timbre", style="magenta")
-    char_table.add_column("Appearance Spec", style="white")
+    char_table.add_column("Sheet Image Anchor", style="blue")
 
-    for c in result.characters:
+    for c in updated_chars.values():
+        ref_preview = c.reference_image_paths[0] if c.reference_image_paths else "None"
         char_table.add_row(
             c.char_id,
             c.name,
             f"{c.gender}, {c.age}",
             c.voice_timbre,
-            c.appearance_description[:60] + "..." if len(c.appearance_description) > 60 else c.appearance_description,
+            ref_preview,
         )
     console.print(char_table)
 
-    console.print(f"[green]✓ Generated {len(result.characters)} character profiles and {len(result.shots)} shots.[/green]")
+    console.print(f"[green]✓ Generated {len(result.characters)} characters and {len(result.shots)} shots with visual anchors.[/green]")
+
+
+@app.command()
+def generate_character_sheets(
+    config: str = "config.yaml",
+    mock: bool = typer.Option(True, help="Generate local mock character sheets"),
+):
+    """Ensures canonical visual character sheets are rendered for all active characters."""
+    cfg = _load_config(config)
+    db_path = cfg["storage"]["database_path"]
+    console.print("[cyan]Synthesizing canonical character sheets...[/cyan]")
+    updated = ensure_character_sheets(db_path, output_dir=cfg["project"]["output_dir"], mock=mock)
+    export_character_sheet_json(tuple(updated.values()), "output/character_sheet.json")
+    console.print(f"[green]✓ Successfully generated {len(updated)} character sheets in output/characters/[/green]")
 
 
 @app.command()
@@ -110,6 +130,7 @@ def render_shot(
         console.print(f"[red]Shot {shot_id} not found in database.[/red]")
         raise typer.Exit(1)
 
+    ensure_character_sheets(db_path, output_dir=cfg["project"]["output_dir"], mock=mock)
     char_dict = get_character_dict(db_path)
 
     console.print(f"[cyan]Processing shot {shot_id} (Status: {shot.status})...[/cyan]")
@@ -139,6 +160,7 @@ def render_all(
         console.print("[yellow]No queued shots found.[/yellow]")
         return
 
+    ensure_character_sheets(db_path, output_dir=cfg["project"]["output_dir"], mock=mock)
     char_dict = get_character_dict(db_path)
 
     console.print(f"[cyan]Rendering {len(shots)} shots with dynamic character sheets...[/cyan]")
@@ -193,13 +215,15 @@ def status(config: str = "config.yaml"):
     # Display Discovered Characters
     chars = list_characters(db_path)
     if chars:
-        char_table = Table(title="🎭 Active Character Sheet")
+        char_table = Table(title="🎭 Active Character Sheet & Visual Anchors")
         char_table.add_column("ID", style="cyan")
         char_table.add_column("Name", style="green")
         char_table.add_column("Gender/Age", style="yellow")
         char_table.add_column("Voice Timbre", style="magenta")
+        char_table.add_column("Sheet Image Anchor", style="blue")
         for c in chars:
-            char_table.add_row(c.char_id, c.name, f"{c.gender}, {c.age}", c.voice_timbre)
+            ref = c.reference_image_paths[0] if c.reference_image_paths else "None"
+            char_table.add_row(c.char_id, c.name, f"{c.gender}, {c.age}", c.voice_timbre, ref)
         console.print(char_table)
 
     shots = list_shots(db_path)
