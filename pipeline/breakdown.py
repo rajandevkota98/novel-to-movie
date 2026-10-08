@@ -7,7 +7,10 @@ into structured dramatic scenes and atomic shot jobs.
 import json
 import os
 from typing import Any, Dict, Optional, Tuple
+from dotenv import load_dotenv
 import httpx
+
+load_dotenv()
 
 from pipeline.models import BreakdownResult, CharacterProfile, DialogueLine, SceneOutline, ShotJob
 
@@ -47,7 +50,14 @@ def _call_llm(
         resp = client.post(OPENROUTER_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        content = data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            lines = content.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            content = "\n".join(lines).strip()
         return json.loads(content)
 
 
