@@ -9,9 +9,9 @@ Follows strict functional programming:
 import json
 import sqlite3
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
-from pipeline.models import DialogueLine, ShotJob
+from pipeline.models import CharacterProfile, DialogueLine, ShotJob
 
 
 def init_database(db_path: str) -> None:
@@ -21,8 +21,22 @@ def init_database(db_path: str) -> None:
 
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute(
+        cursor.executescript(
             """
+            CREATE TABLE IF NOT EXISTS characters (
+                char_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                gender TEXT NOT NULL,
+                age TEXT NOT NULL,
+                appearance_description TEXT NOT NULL,
+                personality_tone TEXT NOT NULL,
+                voice_timbre TEXT NOT NULL,
+                reference_images_json TEXT NOT NULL DEFAULT '[]',
+                reference_audio_path TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS shots (
                 shot_id TEXT PRIMARY KEY,
                 sequence_order INTEGER NOT NULL,
@@ -211,3 +225,90 @@ def update_shot_state(
     updated_shot = ShotJob(**shot_dict)
     save_shot(db_path, updated_shot)
     return updated_shot
+
+
+def _row_to_character_profile(row: sqlite3.Row) -> CharacterProfile:
+    """Converts a database row into an immutable CharacterProfile."""
+    ref_images = tuple(json.loads(row["reference_images_json"]))
+    return CharacterProfile(
+        char_id=row["char_id"],
+        name=row["name"],
+        gender=row["gender"],
+        age=row["age"],
+        appearance_description=row["appearance_description"],
+        personality_tone=row["personality_tone"],
+        voice_timbre=row["voice_timbre"],
+        reference_image_paths=ref_images,
+        reference_audio_path=row["reference_audio_path"],
+    )
+
+
+def save_character(db_path: str, char: CharacterProfile) -> None:
+    """Inserts or updates a dynamic character sheet profile in SQLite."""
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        ref_images_json = json.dumps(list(char.reference_image_paths))
+        cursor.execute(
+            """
+            INSERT INTO characters (
+                char_id, name, gender, age, appearance_description,
+                personality_tone, voice_timbre, reference_images_json,
+                reference_audio_path, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(char_id) DO UPDATE SET
+                name=excluded.name,
+                gender=excluded.gender,
+                age=excluded.age,
+                appearance_description=excluded.appearance_description,
+                personality_tone=excluded.personality_tone,
+                voice_timbre=excluded.voice_timbre,
+                reference_images_json=excluded.reference_images_json,
+                reference_audio_path=excluded.reference_audio_path,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                char.char_id,
+                char.name,
+                char.gender,
+                char.age,
+                char.appearance_description,
+                char.personality_tone,
+                char.voice_timbre,
+                ref_images_json,
+                char.reference_audio_path,
+            ),
+        )
+        conn.commit()
+
+
+def save_characters_batch(db_path: str, chars: Sequence[CharacterProfile]) -> None:
+    """Saves multiple discovered characters atomically."""
+    for c in chars:
+        save_character(db_path, c)
+
+
+def get_character(db_path: str, char_id: str) -> Optional[CharacterProfile]:
+    """Retrieves a character by ID from SQLite."""
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM characters WHERE char_id = ?", (char_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return _row_to_character_profile(row)
+
+
+def list_characters(db_path: str) -> Tuple[CharacterProfile, ...]:
+    """Lists all dynamically discovered characters for the project."""
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM characters ORDER BY name ASC")
+        rows = cursor.fetchall()
+        return tuple(_row_to_character_profile(r) for r in rows)
+
+
+def get_character_dict(db_path: str) -> Dict[str, CharacterProfile]:
+    """Returns a dictionary mapping char_id -> CharacterProfile."""
+    return {c.char_id: c for c in list_characters(db_path)}
