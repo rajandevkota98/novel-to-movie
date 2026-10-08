@@ -1,0 +1,37 @@
+{
+  "1": {
+    "inputs": {
+      "image": "{{KEYFRAME_IMAGE}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "2": {
+    "inputs": {
+      "model_name": "wan2.1_i2v_14B_480p.safetensors"
+    },
+    "class_type": "WanVideoModelLoader"
+  },
+  "3": {
+    "inputs": {
+      "prompt": "{{MOTION_PROMPT}}",
+      "negative_prompt": "static, blurry, jump cuts, distortion",
+      "seed": 42,
+      "steps": 30,
+      "cfg": 6.0,
+      "num_frames": 81,
+      "fps": 16,
+      "image": ["1", 0],
+      "model": ["2", 0]
+    },
+    "class_type": "WanVideoSampler"
+  },
+  "4": {
+    "inputs": {
+      "filename_prefix": "wan2_clip",
+      "fps": 16,
+      "images": ["3", 0]
+    },
+    "class_type": "VHS_VideoCombine"
+  }
+}
