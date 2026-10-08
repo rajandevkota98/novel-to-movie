@@ -96,7 +96,12 @@ class KeyframeComfyWorker:
         _wait_for_comfy(port=8188)
 
     @modal.method()
-    def run_workflow(self, workflow_json: Dict[str, Any]) -> bytes:
+    def run_workflow(self, workflow_json: Dict[str, Any], input_files: Optional[Dict[str, bytes]] = None) -> bytes:
+        if input_files:
+            input_dir = Path("/root/ComfyUI/input")
+            input_dir.mkdir(parents=True, exist_ok=True)
+            for filename, file_bytes in input_files.items():
+                (input_dir / filename).write_bytes(file_bytes)
         return _queue_workflow_and_get_output(workflow_json, port=8188)
 
 
